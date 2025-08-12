@@ -5,11 +5,32 @@ import { useState } from 'react'
 export default function Home() {
   const [file, setFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0]
     if (uploadedFile && uploadedFile.type === 'application/pdf') {
       setFile(uploadedFile)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    
+    const droppedFile = e.dataTransfer.files[0]
+    if (droppedFile && droppedFile.type === 'application/pdf') {
+      setFile(droppedFile)
     }
   }
 
@@ -71,35 +92,52 @@ export default function Home() {
         URL.revokeObjectURL(url)
         
         console.log(`JSON downloaded as: ${fileName}`)
-        alert(`Extraction terminée! ${data.requirements.length} exigences extraites.\nFichier téléchargé: ${fileName}`)
       } else {
         console.warn('No requirements found in response')
-        alert('Aucune exigence PCI DSS trouvée dans le PDF.')
       }
     } catch (error) {
       console.error('Error processing file:', error)
-      alert(`Erreur lors du traitement du PDF: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
     } finally {
       setIsProcessing(false)
     }
   }
 
-
   return (
-    <div className="min-h-screen bg-white p-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden">
+      {/* Gradient Background Effects */}
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-black to-pink-500/10"></div>
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-r from-orange-500/20 to-pink-500/20 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-l from-pink-500/15 to-orange-500/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      
+      {/* Main Container */}
+      <div className="relative z-10 w-full max-w-md mx-auto px-6">
+        
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            PCI DSS Requirements Extractor
+        <div className="text-center mb-12">
+          <div className="mb-6">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-orange-500 to-pink-500 rounded-2xl flex items-center justify-center">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+          </div>
+          <h1 className="text-3xl font-light text-white mb-2 tracking-tight">
+            PCI DSS Extractor
           </h1>
-          <p className="text-gray-600">
-            Upload a PCI DSS PDF to extract requirements
+          <p className="text-gray-400 text-sm font-light">
+            Extract requirements from your PDF document
           </p>
         </div>
 
-        {/* File Upload */}
-        <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-6">
+        {/* Upload Area */}
+        <div 
+          className={`relative mb-8 transition-all duration-300 ${
+            isDragging ? 'scale-105' : 'scale-100'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <input
             type="file"
             accept=".pdf"
@@ -107,36 +145,76 @@ export default function Home() {
             className="hidden"
             id="file-upload"
           />
+          
           <label
             htmlFor="file-upload"
-            className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+            className={`relative block w-full p-8 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 group ${
+              isDragging 
+                ? 'border-orange-500/50 bg-orange-500/5' 
+                : file 
+                ? 'border-pink-500/30 bg-pink-500/5' 
+                : 'border-gray-700 hover:border-gray-600 hover:bg-gray-900/20'
+            }`}
           >
-            Select PDF File
+            <div className="text-center">
+              <div className={`mx-auto w-12 h-12 mb-4 rounded-full flex items-center justify-center transition-all duration-300 ${
+                file 
+                  ? 'bg-gradient-to-r from-orange-500 to-pink-500' 
+                  : 'bg-gray-800 group-hover:bg-gray-700'
+              }`}>
+                {file ? (
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6 text-gray-400 group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                )}
+              </div>
+              
+              {file ? (
+                <div>
+                  <p className="text-white font-medium mb-1">{file.name}</p>
+                  <p className="text-gray-400 text-sm">Click to change file</p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-white mb-1">Drop your PDF here</p>
+                  <p className="text-gray-400 text-sm">or click to browse</p>
+                </div>
+              )}
+            </div>
           </label>
-          {file && (
-            <p className="mt-2 text-sm text-gray-600">
-              Selected: {file.name}
-            </p>
-          )}
         </div>
 
         {/* Process Button */}
         {file && (
-          <div className="text-center mb-6">
-            <button
-              onClick={processFile}
-              disabled={isProcessing}
-              className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
-            >
-              {isProcessing ? 'Processing...' : 'Extract Requirements'}
-            </button>
-          </div>
+          <button
+            onClick={processFile}
+            disabled={isProcessing}
+            className={`w-full py-4 px-6 rounded-2xl font-medium text-white transition-all duration-300 ${
+              isProcessing
+                ? 'bg-gray-700 cursor-not-allowed'
+                : 'bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 transform hover:scale-[1.02] active:scale-[0.98]'
+            }`}
+          >
+            {isProcessing ? (
+              <div className="flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>
+                Processing...
+              </div>
+            ) : (
+              'Extract Requirements'
+            )}
+          </button>
         )}
 
-        {/* Message d'information */}
-        <div className="text-center text-gray-600 mt-8">
-          <p className="text-lg mb-2">📄 Sélectionnez un fichier PDF PCI DSS</p>
-          <p className="text-sm">L&apos;extraction générera automatiquement un fichier JSON téléchargeable</p>
+        {/* Success/Error Messages */}
+        <div className="mt-8 text-center">
+          <p className="text-gray-500 text-xs">
+            Secure • Fast • Automated
+          </p>
         </div>
       </div>
     </div>
