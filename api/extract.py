@@ -7,8 +7,6 @@ import tempfile
 import re
 import io
 from typing import List, Dict, Any
-from urllib.parse import parse_qs
-
 # Import PyPDF2
 try:
     import PyPDF2
@@ -177,100 +175,78 @@ def parse_multipart_data(body: bytes, content_type: str):
                 return pdf_data
     return None
 
-def handler(request):
-    """Fonction principale Vercel"""
-    # CORS headers
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Content-Type': 'application/json'
-    }
-    
-    if request.method == 'OPTIONS':
-        return {
-            'statusCode': 200,
-            'headers': headers,
-            'body': ''
-        }
-    
-    if request.method != 'POST':
-        return {
-            'statusCode': 405,
-            'headers': headers,
-            'body': json.dumps({'error': 'Method not allowed'})
-        }
-    
-    try:
-        # Récupérer le body de la requête
-        if hasattr(request, 'body'):
-            body = request.body
-        else:
-            body = request.get('body', b'')
-            if isinstance(body, str):
-                body = body.encode('utf-8')
-        
-        content_type = request.headers.get('content-type', '') or request.headers.get('Content-Type', '')
-        
-        pdf_content = None
-        
-        # Si c'est du multipart, parser le fichier
-        if 'multipart/form-data' in content_type:
-            pdf_content = parse_multipart_data(body, content_type)
-        
-        # Fallback : utiliser le PDF de démo
-        if not pdf_content:
-            demo_pdf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'PCI-DSS-v4-0-1-SAQ-D-Merchant-FR.pdf')
-            if os.path.exists(demo_pdf_path):
-                extractor = PCIRequirementsExtractor(pdf_path=demo_pdf_path)
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse
+
+class handler(BaseHTTPRequestHandler):
+    def _set_cors_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self._set_cors_headers()
+        self.end_headers()
+
+    def do_POST(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else b''
+            
+            content_type = self.headers.get('Content-Type', '')
+            pdf_content = None
+            
+            # Parser multipart si présent
+            if 'multipart/form-data' in content_type and body:
+                pdf_content = parse_multipart_data(body, content_type)
+            
+            # Fallback : PDF de démo
+            if not pdf_content:
+                demo_pdf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'PCI-DSS-v4-0-1-SAQ-D-Merchant-FR.pdf')
+                if os.path.exists(demo_pdf_path):
+                    extractor = PCIRequirementsExtractor(pdf_path=demo_pdf_path)
+                else:
+                    self.send_error(400, "No PDF file provided and no demo file found")
+                    return
             else:
-                return {
-                    'statusCode': 400,
-                    'headers': headers,
-                    'body': json.dumps({'error': 'No PDF file provided and no demo file found'})
+                extractor = PCIRequirementsExtractor(pdf_content=pdf_content)
+            
+            # Extraction
+            requirements = extractor.extract_all_requirements()
+            
+            if not requirements:
+                self.send_error(400, "No PCI requirements found in PDF")
+                return
+            
+            # Tri
+            def sort_key(req):
+                parts = [int(x) for x in req['req_num'].split('.')]
+                while len(parts) < 4:
+                    parts.append(0)
+                return parts
+            
+            sorted_requirements = sorted(requirements, key=sort_key)
+            
+            response_data = {
+                'success': True,
+                'requirements': sorted_requirements,
+                'summary': {
+                    'total': len(sorted_requirements),
+                    'with_tests': len([req for req in sorted_requirements if req['tests']]),
+                    'with_guidance': len([req for req in sorted_requirements if req['guidance']]),
+                    'total_tests': sum(len(req['tests']) for req in sorted_requirements)
                 }
-        else:
-            extractor = PCIRequirementsExtractor(pdf_content=pdf_content)
-        
-        # Extraction
-        requirements = extractor.extract_all_requirements()
-        
-        if not requirements:
-            return {
-                'statusCode': 400,
-                'headers': headers,
-                'body': json.dumps({'error': 'No PCI requirements found in PDF'})
             }
-        
-        # Tri
-        def sort_key(req):
-            parts = [int(x) for x in req['req_num'].split('.')]
-            while len(parts) < 4:
-                parts.append(0)
-            return parts
-        
-        sorted_requirements = sorted(requirements, key=sort_key)
-        
-        response_data = {
-            'success': True,
-            'requirements': sorted_requirements,
-            'summary': {
-                'total': len(sorted_requirements),
-                'with_tests': len([req for req in sorted_requirements if req['tests']]),
-                'with_guidance': len([req for req in sorted_requirements if req['guidance']]),
-                'total_tests': sum(len(req['tests']) for req in sorted_requirements)
-            }
-        }
-        
-        return {
-            'statusCode': 200,
-            'headers': headers,
-            'body': json.dumps(response_data, ensure_ascii=True)
-        }
-        
-    except Exception as e:
-        return {
-            'statusCode': 500,
-            'headers': headers,
-            'body': json.dumps({'error': f'Server error: {str(e)}'})
-        }
+            
+            # Réponse JSON
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self._set_cors_headers()
+            self.end_headers()
+            
+            json_response = json.dumps(response_data, ensure_ascii=True)
+            self.wfile.write(json_response.encode('utf-8'))
+            
+        except Exception as e:
+            self.send_error(500, f"Server error: {str(e)}")
