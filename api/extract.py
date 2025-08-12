@@ -43,7 +43,7 @@ class PCIRequirementsExtractor:
             return ""
 
     def clean_text(self, text: str) -> str:
-        """Nettoie le texte"""
+        """Nettoie le texte et échappe les caractères problématiques pour JSON"""
         text = re.sub(r'SAQ D de PCI DSS v[\d.]+.*?Page \d+.*?(?:En Place|Pas en Place)', '', text, flags=re.DOTALL | re.IGNORECASE)
         text = re.sub(r'© 2006-\d+.*?LLC.*?Tous Droits Réservés\.', '', text, flags=re.IGNORECASE)
         text = re.sub(r'Octobre 2024', '', text, flags=re.IGNORECASE)
@@ -113,6 +113,20 @@ class PCIRequirementsExtractor:
             requirements.append(current_req)
         return requirements
 
+    def _clean_for_json(self, text: str) -> str:
+        """Nettoie le texte pour éviter les erreurs JSON"""
+        if not text:
+            return ""
+        # Remplacer les guillemets doubles non échappés
+        text = text.replace('"', '\\"')
+        # Remplacer les retours à la ligne et tabulations
+        text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+        # Supprimer les caractères de contrôle
+        text = re.sub(r'[\x00-\x1f\x7f]', '', text)
+        # Normaliser les espaces multiples
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
     def extract_all_requirements(self) -> List[Dict[str, Any]]:
         """Extrait toutes les exigences"""
         raw_text = self.read_pdf_content()
@@ -120,6 +134,13 @@ class PCIRequirementsExtractor:
             return []
         clean_text = self.clean_text(raw_text)
         self.requirements = self.parse_requirements(clean_text)
+        
+        # Nettoyer tous les textes pour JSON
+        for req in self.requirements:
+            req['text'] = self._clean_for_json(req['text'])
+            req['guidance'] = self._clean_for_json(req['guidance'])
+            req['tests'] = [self._clean_for_json(test) for test in req['tests']]
+        
         return self.requirements
 
 
@@ -179,7 +200,9 @@ class handler(BaseHTTPRequestHandler):
                 }
             }
             
-            self.wfile.write(json.dumps(response_data, ensure_ascii=False).encode('utf-8'))
+            # Utiliser json.dumps avec des paramètres sûrs
+            json_response = json.dumps(response_data, ensure_ascii=False, separators=(',', ':'))
+            self.wfile.write(json_response.encode('utf-8'))
             
         except Exception as e:
             self.send_error(500, str(e))
