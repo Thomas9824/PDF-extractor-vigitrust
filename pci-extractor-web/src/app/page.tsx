@@ -8,7 +8,7 @@ type State = "idle" | "uploading" | "processing" | "success" | "error"
 
 type ExtractionResult = {
   filename: string
-  requirements: any[]
+  requirements: Record<string, unknown>[]
   summary: {
     total: number
     with_tests: number
@@ -299,7 +299,7 @@ export default function Home() {
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-100">📊 Format structuré</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400">JSON prêt à l'emploi pour vos systèmes</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">JSON prêt à l&apos;emploi pour vos systèmes</div>
               </div>
             </div>
           )}
