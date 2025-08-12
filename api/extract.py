@@ -1,12 +1,13 @@
 """
 API Serverless pour l'extracteur PCI DSS - Vercel Compatible
 """
-from http.server import BaseHTTPRequestHandler
 import json
 import os
 import tempfile
 import re
+import io
 from typing import List, Dict, Any
+from urllib.parse import parse_qs
 
 # Import PyPDF2
 try:
@@ -17,33 +18,44 @@ except ImportError:
 class PCIRequirementsExtractor:
     """Version simplifiée pour Vercel"""
 
-    def __init__(self, pdf_path: str):
+    def __init__(self, pdf_content: bytes = None, pdf_path: str = None):
+        self.pdf_content = pdf_content
         self.pdf_path = pdf_path
         self.requirements = []
         self.test_indicators = ['• Examiner', '• Observer', '• Interroger', '• Vérifier', '• Inspecter']
 
     def read_pdf_content(self) -> str:
-        """Lit le contenu du PDF"""
+        """Lit le contenu du PDF depuis les bytes ou le chemin"""
         if not PyPDF2:
             raise ImportError("PyPDF2 n'est pas disponible")
             
         try:
-            with open(self.pdf_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                text = ""
-                start_page = 15
-                end_page = min(129, len(pdf_reader.pages))
-                
-                for page_num in range(start_page, end_page):
-                    page = pdf_reader.pages[page_num]
-                    text += page.extract_text() + "\n"
+            if self.pdf_content:
+                pdf_file = io.BytesIO(self.pdf_content)
+            elif self.pdf_path and os.path.exists(self.pdf_path):
+                pdf_file = open(self.pdf_path, 'rb')
+            else:
+                return ""
+            
+            pdf_reader = PyPDF2.PdfReader(pdf_file)
+            text = ""
+            start_page = 15
+            end_page = min(129, len(pdf_reader.pages))
+            
+            for page_num in range(start_page, end_page):
+                page = pdf_reader.pages[page_num]
+                text += page.extract_text() + "\n"
+            
+            if isinstance(pdf_file, io.BytesIO) or self.pdf_path:
+                pdf_file.close()
+            
             return text
         except Exception as e:
             print(f"Erreur: {e}")
             return ""
 
     def clean_text(self, text: str) -> str:
-        """Nettoie le texte et échappe les caractères problématiques pour JSON"""
+        """Nettoie le texte"""
         text = re.sub(r'SAQ D de PCI DSS v[\d.]+.*?Page \d+.*?(?:En Place|Pas en Place)', '', text, flags=re.DOTALL | re.IGNORECASE)
         text = re.sub(r'© 2006-\d+.*?LLC.*?Tous Droits Réservés\.', '', text, flags=re.IGNORECASE)
         text = re.sub(r'Octobre 2024', '', text, flags=re.IGNORECASE)
@@ -114,33 +126,18 @@ class PCIRequirementsExtractor:
         return requirements
 
     def _clean_for_json(self, text: str) -> str:
-        """Nettoie agressivement le texte pour éviter les erreurs JSON"""
+        """Nettoie le texte pour JSON - version plus simple"""
         if not text:
             return ""
         
-        # Convertir en string au cas où
         text = str(text)
-        
-        # Supprimer tous les caractères problématiques
-        # Garder seulement les caractères alphanumériques, espaces et ponctuation de base
-        text = re.sub(r'[^\w\s\.\,\;\:\!\?\(\)\[\]\-\+\=\@\#\$\%\&\*\/\\\|\<\>]', ' ', text, flags=re.UNICODE)
-        
-        # Remplacer les retours à la ligne et tabulations
-        text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-        
-        # Supprimer les caractères de contrôle et non-ASCII problématiques
-        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
-        
-        # Supprimer les guillemets doubles et simples pour éviter les conflits
-        text = text.replace('"', '').replace("'", "")
-        
-        # Normaliser les espaces multiples
+        # Remplacer les caractères de contrôle
+        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', text)
+        # Normaliser les espaces
         text = re.sub(r'\s+', ' ', text)
-        
-        # Limiter la longueur pour éviter les très longues chaînes
+        # Limiter la taille
         if len(text) > 1000:
             text = text[:1000] + "..."
-            
         return text.strip()
 
     def extract_all_requirements(self) -> List[Dict[str, Any]]:
@@ -159,76 +156,121 @@ class PCIRequirementsExtractor:
         
         return self.requirements
 
+def parse_multipart_data(body: bytes, content_type: str):
+    """Parse multipart form data"""
+    if b'file' not in body:
+        return None
+    
+    # Simple parsing pour récupérer le contenu PDF
+    boundary = content_type.split('boundary=')[1].encode()
+    parts = body.split(b'--' + boundary)
+    
+    for part in parts:
+        if b'filename=' in part and b'Content-Type: application/pdf' in part:
+            # Trouver le début des données PDF
+            header_end = part.find(b'\r\n\r\n')
+            if header_end != -1:
+                pdf_data = part[header_end + 4:]
+                # Supprimer les données de fin
+                if pdf_data.endswith(b'\r\n'):
+                    pdf_data = pdf_data[:-2]
+                return pdf_data
+    return None
 
-class handler(BaseHTTPRequestHandler):
-    def _set_cors_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self._set_cors_headers()
-        self.end_headers()
-
-    def do_POST(self):
-        try:
-            # Simple handling for demo - in production, proper multipart parsing needed
-            content_length = int(self.headers.get('Content-Length', 0))
-            if content_length == 0:
-                self.send_error(400, "No content")
-                return
-
-            # Pour la démo, on utilise le PDF existant
-            pdf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'PCI-DSS-v4-0-1-SAQ-D-Merchant-FR.pdf')
-            
-            if not os.path.exists(pdf_path):
-                self.send_error(404, "PDF de test non trouvé")
-                return
-
-            # Extraction
-            extractor = PCIRequirementsExtractor(pdf_path)
-            requirements = extractor.extract_all_requirements()
-            
-            # Tri
-            def sort_key(req):
-                parts = [int(x) for x in req['req_num'].split('.')]
-                while len(parts) < 4:
-                    parts.append(0)
-                return parts
-            
-            sorted_requirements = sorted(requirements, key=sort_key)
-            
-            # Réponse
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self._set_cors_headers()
-            self.end_headers()
-            
-            response_data = {
-                'success': True,
-                'requirements': sorted_requirements,
-                'summary': {
-                    'total': len(sorted_requirements),
-                    'with_tests': len([req for req in sorted_requirements if req['tests']]),
-                    'with_guidance': len([req for req in sorted_requirements if req['guidance']]),
-                    'total_tests': sum(len(req['tests']) for req in sorted_requirements)
+def handler(request):
+    """Fonction principale Vercel"""
+    # CORS headers
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Content-Type': 'application/json'
+    }
+    
+    if request.method == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': headers,
+            'body': ''
+        }
+    
+    if request.method != 'POST':
+        return {
+            'statusCode': 405,
+            'headers': headers,
+            'body': json.dumps({'error': 'Method not allowed'})
+        }
+    
+    try:
+        # Récupérer le body de la requête
+        if hasattr(request, 'body'):
+            body = request.body
+        else:
+            body = request.get('body', b'')
+            if isinstance(body, str):
+                body = body.encode('utf-8')
+        
+        content_type = request.headers.get('content-type', '') or request.headers.get('Content-Type', '')
+        
+        pdf_content = None
+        
+        # Si c'est du multipart, parser le fichier
+        if 'multipart/form-data' in content_type:
+            pdf_content = parse_multipart_data(body, content_type)
+        
+        # Fallback : utiliser le PDF de démo
+        if not pdf_content:
+            demo_pdf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'PCI-DSS-v4-0-1-SAQ-D-Merchant-FR.pdf')
+            if os.path.exists(demo_pdf_path):
+                extractor = PCIRequirementsExtractor(pdf_path=demo_pdf_path)
+            else:
+                return {
+                    'statusCode': 400,
+                    'headers': headers,
+                    'body': json.dumps({'error': 'No PDF file provided and no demo file found'})
                 }
+        else:
+            extractor = PCIRequirementsExtractor(pdf_content=pdf_content)
+        
+        # Extraction
+        requirements = extractor.extract_all_requirements()
+        
+        if not requirements:
+            return {
+                'statusCode': 400,
+                'headers': headers,
+                'body': json.dumps({'error': 'No PCI requirements found in PDF'})
             }
-            
-            try:
-                # Utiliser json.dumps avec des paramètres très sûrs
-                json_response = json.dumps(response_data, ensure_ascii=True, separators=(',', ':'), indent=None)
-                self.wfile.write(json_response.encode('utf-8'))
-            except Exception as json_error:
-                # Si la sérialisation JSON échoue, retourner une erreur simple
-                error_response = {
-                    'success': False,
-                    'error': f'JSON serialization failed: {str(json_error)}',
-                    'requirements_count': len(sorted_requirements)
-                }
-                safe_json = json.dumps(error_response, ensure_ascii=True)
-                self.wfile.write(safe_json.encode('utf-8'))
-            
-        except Exception as e:
-            self.send_error(500, str(e))
+        
+        # Tri
+        def sort_key(req):
+            parts = [int(x) for x in req['req_num'].split('.')]
+            while len(parts) < 4:
+                parts.append(0)
+            return parts
+        
+        sorted_requirements = sorted(requirements, key=sort_key)
+        
+        response_data = {
+            'success': True,
+            'requirements': sorted_requirements,
+            'summary': {
+                'total': len(sorted_requirements),
+                'with_tests': len([req for req in sorted_requirements if req['tests']]),
+                'with_guidance': len([req for req in sorted_requirements if req['guidance']]),
+                'total_tests': sum(len(req['tests']) for req in sorted_requirements)
+            }
+        }
+        
+        return {
+            'statusCode': 200,
+            'headers': headers,
+            'body': json.dumps(response_data, ensure_ascii=True)
+        }
+        
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': headers,
+            'body': json.dumps({'error': f'Server error: {str(e)}'})
+        }
