@@ -136,7 +136,7 @@ export default function Home() {
         {/* Message d'information */}
         <div className="text-center text-gray-600 mt-8">
           <p className="text-lg mb-2">📄 Sélectionnez un fichier PDF PCI DSS</p>
-          <p className="text-sm">L'extraction générera automatiquement un fichier JSON téléchargeable</p>
+          <p className="text-sm">L&apos;extraction générera automatiquement un fichier JSON téléchargeable</p>
         </div>
       </div>
     </div>
