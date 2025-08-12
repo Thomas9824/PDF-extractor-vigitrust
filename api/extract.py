@@ -114,17 +114,33 @@ class PCIRequirementsExtractor:
         return requirements
 
     def _clean_for_json(self, text: str) -> str:
-        """Nettoie le texte pour éviter les erreurs JSON"""
+        """Nettoie agressivement le texte pour éviter les erreurs JSON"""
         if not text:
             return ""
-        # Remplacer les guillemets doubles non échappés
-        text = text.replace('"', '\\"')
+        
+        # Convertir en string au cas où
+        text = str(text)
+        
+        # Supprimer tous les caractères problématiques
+        # Garder seulement les caractères alphanumériques, espaces et ponctuation de base
+        text = re.sub(r'[^\w\s\.\,\;\:\!\?\(\)\[\]\-\+\=\@\#\$\%\&\*\/\\\|\<\>]', ' ', text, flags=re.UNICODE)
+        
         # Remplacer les retours à la ligne et tabulations
         text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-        # Supprimer les caractères de contrôle
-        text = re.sub(r'[\x00-\x1f\x7f]', '', text)
+        
+        # Supprimer les caractères de contrôle et non-ASCII problématiques
+        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+        
+        # Supprimer les guillemets doubles et simples pour éviter les conflits
+        text = text.replace('"', '').replace("'", "")
+        
         # Normaliser les espaces multiples
         text = re.sub(r'\s+', ' ', text)
+        
+        # Limiter la longueur pour éviter les très longues chaînes
+        if len(text) > 1000:
+            text = text[:1000] + "..."
+            
         return text.strip()
 
     def extract_all_requirements(self) -> List[Dict[str, Any]]:
@@ -200,9 +216,19 @@ class handler(BaseHTTPRequestHandler):
                 }
             }
             
-            # Utiliser json.dumps avec des paramètres sûrs
-            json_response = json.dumps(response_data, ensure_ascii=False, separators=(',', ':'))
-            self.wfile.write(json_response.encode('utf-8'))
+            try:
+                # Utiliser json.dumps avec des paramètres très sûrs
+                json_response = json.dumps(response_data, ensure_ascii=True, separators=(',', ':'), indent=None)
+                self.wfile.write(json_response.encode('utf-8'))
+            except Exception as json_error:
+                # Si la sérialisation JSON échoue, retourner une erreur simple
+                error_response = {
+                    'success': False,
+                    'error': f'JSON serialization failed: {str(json_error)}',
+                    'requirements_count': len(sorted_requirements)
+                }
+                safe_json = json.dumps(error_response, ensure_ascii=True)
+                self.wfile.write(safe_json.encode('utf-8'))
             
         except Exception as e:
             self.send_error(500, str(e))
