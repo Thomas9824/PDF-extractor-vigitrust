@@ -54,14 +54,40 @@ L'interface sera disponible sur `http://localhost:3001`
 
 ## Déploiement sur Vercel
 
-Le projet est configuré avec `vercel.json` pour déployer automatiquement :
+### Préparation
+1. Créer un compte sur [Vercel](https://vercel.com)
+2. Connecter votre dépôt GitHub à Vercel
+3. S'assurer que le projet contient tous les fichiers nécessaires
 
+### Configuration automatique
+Le projet est configuré avec `vercel.json` pour un déploiement automatique :
+
+- **Frontend** : Application Next.js dans `/pci-extractor-web`  
+- **Backend** : API Python serverless dans `/api/index.py`
+- **Routing** : `/api/extract` → fonction Python
+
+### Déploiement manuel
 ```bash
 # Installer Vercel CLI
 npm install -g vercel
 
-# Déployer
+# Se connecter à Vercel
+vercel login
+
+# Déployer depuis la racine du projet
 vercel --prod
+```
+
+### Variables d'environnement
+Aucune variable d'environnement n'est requise pour ce projet.
+
+### Structure de déploiement
+```
+├── api/
+│   └── index.py          # Fonction serverless Python
+├── pci-extractor-web/    # Application Next.js
+├── requirements.txt      # Dépendances Python
+└── vercel.json          # Configuration Vercel
 ```
 
 ## Structure du projet
