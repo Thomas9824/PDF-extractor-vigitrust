@@ -1,33 +1,20 @@
-import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-  preload: true,
 });
 
-export const dynamic = "force-static";
-
-export const viewport: Viewport = {
-  maximumScale: 1, // Disable auto-zoom on mobile Safari
-};
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: "PCI DSS Extractor - Extract requirements from PDF documents",
-  description: "Extract PCI DSS requirements from PDF documents automatically. Simple, fast and secure.",
-  openGraph: {
-    type: "website",
-    title: "PCI DSS Extractor",
-    description: "Extract PCI DSS requirements from PDF documents automatically",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "PCI DSS Extractor",
-    description: "Extract PCI DSS requirements from PDF documents automatically",
-  },
-  generator: 'v0.dev'
+  title: "PDF Extractor",
+  description: "Extract PCI data from PDF files",
 };
 
 export default function RootLayout({
@@ -36,15 +23,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body
-        className={`${geistSans.className} antialiased max-w-screen min-h-svh bg-slate-1 text-slate-12`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="max-w-screen-sm mx-auto w-full relative z-[1] flex flex-col min-h-screen">
-          <div className="px-5 gap-8 flex flex-col flex-1 py-[12vh]">
-            <main className="flex justify-center">{children}</main>
-          </div>
-        </div>
+        {children}
       </body>
     </html>
   );
