@@ -59,12 +59,7 @@ def extract_pci_requirements():
         response_data = {
             'success': True,
             'requirements': sorted_requirements,
-            'summary': {
-                'total': len(sorted_requirements),
-                'with_tests': len([req for req in sorted_requirements if req['tests']]),
-                'with_guidance': len([req for req in sorted_requirements if req['guidance']]),
-                'total_tests': sum(len(req['tests']) for req in sorted_requirements)
-            }
+            'summary': extractor.get_extraction_summary()
         }
         
         return jsonify(response_data)

@@ -1,0 +1,595 @@
+========================================
+DOCUMENTATION TECHNIQUE DÉTAILLÉE
+PCI DSS Extractor - Analyseur d'exigences PCI DSS
+========================================
+
+VERSION: 1.0
+DATE: Août 2025
+AUTEUR: Système d'extraction automatisée PCI DSS
+
+========================================
+1. APERÇU DU PROJET
+========================================
+
+Le PCI DSS Extractor est une application web full-stack conçue pour extraire automatiquement les exigences PCI DSS (Payment Card Industry Data Security Standard) depuis des documents PDF français, spécifiquement le format SAQ D (Self-Assessment Questionnaire) v4.0.1.
+
+L'application combine :
+- Frontend moderne : Next.js 15.4.6 avec React 19.1.0
+- Backend de traitement : Python avec Flask et PyPDF2
+- Déploiement : Architecture serverless sur Vercel
+- Exports : JSON et CSV avec mapping personnalisé
+
+========================================
+2. ARCHITECTURE SYSTÈME
+========================================
+
+2.1 ARCHITECTURE GÉNÉRALE
+--------------------------
+Frontend (Next.js) ↔ API Gateway (Vercel) ↔ Backend (Python/Flask)
+
+L'application suit une architecture microservices avec :
+- Interface utilisateur : React/Next.js (port 3002 en développement)
+- API de traitement : Flask Python (port 8000 en développement)
+- Déploiement : Fonctions serverless Vercel
+- Communication : HTTP REST API avec CORS
+
+2.2 STACK TECHNIQUE
+-------------------
+Frontend :
+- Framework : Next.js 15.4.6
+- UI : React 19.1.0 + TypeScript strict
+- Styling : Tailwind CSS v4 (thème sombre personnalisé)
+- État : React hooks (useState)
+- Build : Webpack + SWC
+
+Backend :
+- Runtime : Python 3.11+
+- Framework : Flask 3.0.0
+- PDF : PyPDF2 3.0.1
+- CORS : Flask-CORS 4.0.0
+- Processing : Regex avancées + NLP basique
+
+2.3 STRUCTURE DES FICHIERS
+---------------------------
+/
+├── pci-extractor-web/          # Frontend Next.js
+│   ├── src/app/
+│   │   ├── page.tsx           # Interface principale
+│   │   ├── layout.tsx         # Layout global
+│   │   └── globals.css        # Styles Tailwind
+│   ├── package.json           # Dépendances frontend
+│   └── tsconfig.json          # Config TypeScript
+├── api/
+│   └── extract.py            # Fonction serverless Vercel
+├── server.py                 # Serveur Flask développement
+├── requirements.txt          # Dépendances Python
+├── vercel.json              # Configuration déploiement
+└── PCI-DSS-v4-0-1-SAQ-D-Merchant-FR.pdf  # Document de test
+
+========================================
+3. FLUX DE DONNÉES DÉTAILLÉ
+========================================
+
+3.1 PROCESSUS D'UPLOAD
+-----------------------
+1. Utilisateur sélectionne un PDF (drag&drop ou click)
+2. Validation côté client : type MIME application/pdf
+3. Stockage temporaire en mémoire : useState<File>
+4. Interface mise à jour : bouton "Extract Requirements" activé
+
+Code TypeScript :
+```typescript
+const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const uploadedFile = event.target.files?.[0]
+  if (uploadedFile && uploadedFile.type === 'application/pdf') {
+    setFile(uploadedFile)
+  }
+}
+```
+
+3.2 COMMUNICATION API
+----------------------
+Développement : http://localhost:8000/api/extract
+Production : /api/extract (fonction serverless)
+
+Format de requête :
+- Méthode : POST
+- Content-Type : multipart/form-data
+- Corps : Fichier PDF en binaire
+
+Format de réponse :
+```json
+{
+  "success": true,
+  "requirements": [
+    {
+      "req_num": "1.1.1",
+      "text": "Description de l'exigence...",
+      "tests": ["• Examiner la documentation", "• Interroger le personnel"],
+      "guidance": "Notes d'applicabilité..."
+    }
+  ],
+  "summary": {
+    "total": 127,
+    "with_tests": 95,
+    "with_guidance": 67,
+    "total_tests": 289
+  }
+}
+```
+
+3.3 PIPELINE DE TRAITEMENT BACKEND
+-----------------------------------
+1. Réception multipart/form-data
+2. Extraction du contenu PDF binaire
+3. Lecture PyPDF2 (pages 16-129 uniquement)
+4. Nettoyage du texte (suppression artefacts)
+5. Parsing par expressions régulières
+6. Structuration des données JSON
+7. Tri et validation finale
+
+========================================
+4. ALGORITHMES D'EXTRACTION PDF
+========================================
+
+4.1 CLASSE PRINCIPALE : PCIRequirementsExtractor
+------------------------------------------------
+La logique d'extraction implémente une reconnaissance de motifs sophistiquée basée sur :
+- Détection des numéros d'exigences
+- Reconnaissance des lignes de test
+- Traitement multi-lignes intelligent
+- Nettoyage des artefacts de mise en page
+
+4.2 DÉTECTION DES NUMÉROS D'EXIGENCES
+--------------------------------------
+```python
+def is_requirement_number(self, line: str) -> str:
+    # Pattern : 1.1.1 ou 12.3.4.5
+    pattern = r'^(\d+\.\d+(?:\.\d+)*(?:\.\d+)*)\s+'
+    match = re.match(pattern, line.strip())
+    if match:
+        req_num = match.group(1)
+        parts = req_num.split('.')
+        if len(parts) >= 2:
+            main_num = int(parts[0])
+            # Validation plage PCI DSS (1-12)
+            if 1 <= main_num <= 12:
+                return req_num
+    return ""
+```
+
+Logique :
+- Reconnaissance format hiérarchique (1.1, 1.1.1, 1.1.1.a)
+- Validation plage principale (exigences 1 à 12)
+- Exclusion numéros de page/version
+
+4.3 RECONNAISSANCE DES TESTS
+-----------------------------
+```python
+test_indicators = [
+    '• Examiner',   # Examen de documents
+    '• Observer',   # Observation de processus
+    '• Interroger', # Interviews personnel
+    '• Vérifier',   # Vérifications techniques
+    '• Inspecter'   # Inspections physiques
+]
+
+def is_test_line(self, line: str) -> bool:
+    line_clean = line.strip()
+    return any(line_clean.startswith(indicator) for indicator in self.test_indicators)
+```
+
+Caractéristiques :
+- 5 types de tests identifiés selon méthodologie PCI
+- Préservation des verbes d'action
+- Gestion des tests multi-lignes
+
+4.4 TRAITEMENT MULTI-LIGNES AVANCÉ
+-----------------------------------
+L'algorithme gère les tests qui s'étendent sur plusieurs lignes :
+
+```python
+def _extract_tests_from_text_line_multiline(self, line: str, current_req, all_lines, current_index):
+    # 1. Détection tests incomplets (< 30 caractères ou sans point final)
+    # 2. Rassemblement lignes suivantes jusqu'à phrase complète
+    # 3. Arrêt sur nouvelle exigence/test/section spéciale
+    # 4. Nettoyage artefacts et validation longueur minimum
+    # 5. Stockage sans doublons
+```
+
+Critères d'arrêt :
+- Nouvelle exigence détectée
+- Nouveau test commençant
+- Section "Notes d'Applicabilité" ou "Conseils"
+- Ligne ignorable (artefact de mise en page)
+
+4.5 NETTOYAGE DU TEXTE
+-----------------------
+```python
+def clean_text(self, text: str) -> str:
+    # Suppression headers/footers
+    text = re.sub(r'SAQ D de PCI DSS v[\d.]+.*?Page \d+.*?(?:En Place|Pas en Place)', '', text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Suppression notices copyright
+    text = re.sub(r'© 2006-\d+.*?LLC.*?Tous Droits Réservés\.', '', text, flags=re.IGNORECASE)
+    
+    # Suppression tableaux de réponse
+    text = re.sub(r'En Place\s+En Place avec CCW\s+Non Applicable\s+Non Testé\s+Pas en Place', '', text, flags=re.IGNORECASE)
+    
+    # Normalisation espaces
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    return "\n".join([line.strip() for line in text.splitlines()])
+```
+
+Artefacts supprimés :
+- En-têtes et pieds de page
+- Notices de copyright
+- Tableaux de cases à cocher (En Place, Pas en Place, etc.)
+- Références croisées (♦ Se reporter...)
+- Instructions questionnaire
+
+========================================
+5. INTERFACE UTILISATEUR
+========================================
+
+5.1 DESIGN SYSTÈME
+-------------------
+Thème : Dark mode moderne avec accents rouges
+Framework : Tailwind CSS v4
+Typographie : Font système optimisée
+Animations : Transitions CSS fluides
+
+5.2 COMPOSANTS PRINCIPAUX
+--------------------------
+1. Zone d'upload :
+   - Drag & drop visuel
+   - Indicateur de fichier sélectionné
+   - Validation temps réel
+   - Feedback états (normal, hover, dragging, success)
+
+2. Bouton de traitement :
+   - État loading avec spinner
+   - Désactivation pendant traitement
+   - Disparition après succès
+
+3. Boutons d'export :
+   - Apparition après traitement
+   - Design cohérent (rouge)
+   - Téléchargement avec horodatage
+
+5.3 ÉTATS D'INTERFACE
+---------------------
+```typescript
+const [file, setFile] = useState<File | null>(null)                    // Fichier sélectionné
+const [isProcessing, setIsProcessing] = useState(false)                // Traitement en cours
+const [isDragging, setIsDragging] = useState(false)                    // Drag & drop actif
+const [extractedData, setExtractedData] = useState<...>(null)          // Données extraites
+```
+
+Logique d'affichage :
+- Bouton Extract : file && !extractedData
+- Boutons download : extractedData !== null
+- Loading state : isProcessing === true
+
+========================================
+6. EXPORTS DE DONNÉES
+========================================
+
+6.1 EXPORT JSON
+----------------
+Format de sortie identique à l'API :
+```json
+[
+  {
+    "req_num": "1.1.1",
+    "text": "Établir et implémenter des standards de configuration...",
+    "tests": ["• Examiner la documentation", "• Interroger le personnel"],
+    "guidance": "Cette exigence s'applique à tous les composants système..."
+  }
+]
+```
+
+Caractéristiques :
+- Indentation 2 espaces pour lisibilité
+- Encodage UTF-8
+- Horodatage dans nom fichier
+
+6.2 EXPORT CSV
+---------------
+Mapping colonnes personnalisé :
+- req_num → reqid
+- text → pci_requirement_fr
+- tests → tp (tests séparés par "; ")
+- guidance → guidance
+
+```csv
+reqid,pci_requirement_fr,tp,guidance
+"1.1.1","Établir et implémenter...","• Examiner la documentation; • Interroger le personnel","Cette exigence s'applique..."
+```
+
+Gestion caractères spéciaux :
+- Échappement guillemets ("" pour ")
+- Arrays joints avec séparateur "; "
+- Encodage UTF-8 avec BOM
+
+```typescript
+const downloadCSV = () => {
+  const headers = ['reqid', 'pci_requirement_fr', 'tp', 'guidance']
+  const csvContent = [
+    headers.join(','),
+    ...extractedData.map((item) => [
+      `"${(item.req_num || '').replace(/"/g, '""')}"`,
+      `"${(item.text || '').replace(/"/g, '""')}"`,
+      `"${(Array.isArray(item.tests) ? item.tests.join('; ') : item.tests || '').replace(/"/g, '""')}"`,
+      `"${(item.guidance || '').replace(/"/g, '""')}"`
+    ].join(','))
+  ].join('\n')
+}
+```
+
+========================================
+7. DÉPLOIEMENT ET CONFIGURATION
+========================================
+
+7.1 DÉVELOPPEMENT LOCAL
+------------------------
+Frontend :
+```bash
+cd pci-extractor-web
+npm install
+npm run dev  # http://localhost:3002
+```
+
+Backend :
+```bash
+pip install -r requirements.txt
+python server.py  # http://localhost:8000
+```
+
+Configuration CORS développement :
+- Origin: http://localhost:3002
+- Methods: POST, OPTIONS, GET
+- Headers: Content-Type
+
+7.2 DÉPLOIEMENT VERCEL
+-----------------------
+Configuration vercel.json :
+```json
+{
+  "builds": [
+    {
+      "src": "pci-extractor-web/package.json",
+      "use": "@vercel/next"
+    },
+    {
+      "src": "api/extract.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/extract",
+      "dest": "/api/extract.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/pci-extractor-web/$1"
+    }
+  ]
+}
+```
+
+Fonctionnalités :
+- Build automatique Next.js
+- Fonction serverless Python
+- Routage API intelligent
+- Variables d'environnement automatiques
+
+7.3 VARIABLES D'ENVIRONNEMENT
+------------------------------
+Frontend (automatique) :
+- NODE_ENV: development/production
+- VERCEL_URL: URL de déploiement
+
+Backend :
+- Pas de variables requises (configuration par défaut)
+
+========================================
+8. PERFORMANCE ET OPTIMISATIONS
+========================================
+
+8.1 OPTIMISATIONS PDF
+----------------------
+- Lecture sélective : pages 16-129 uniquement
+- Stream processing : traitement par chunks
+- Nettoyage mémoire : fermeture explicite des handles
+- Cache local : évite re-lecture multiples
+
+8.2 OPTIMISATIONS FRONTEND
+---------------------------
+- Build optimization : Next.js automatic
+- Code splitting : composants à la demande
+- Tree shaking : élimination code mort
+- CSS purging : Tailwind production
+
+8.3 COMPLEXITÉ ALGORITHMIQUE
+-----------------------------
+Temps :
+- Lecture PDF : O(n) où n = nombre de pages
+- Parsing texte : O(m) où m = longueur texte
+- Pattern matching : O(k) où k = nombre exigences
+- Global : O(n + m + k) - complexité linéaire
+
+Espace :
+- Mémoire proportionnelle à la taille PDF + données extraites
+- Pas de stockage persistant (stateless)
+- Garbage collection automatique
+
+========================================
+9. GESTION D'ERREURS ET SÉCURITÉ
+========================================
+
+9.1 VALIDATION CÔTÉ CLIENT
+---------------------------
+```typescript
+// Validation type MIME
+if (uploadedFile && uploadedFile.type === 'application/pdf') {
+  setFile(uploadedFile)
+}
+
+// Gestion erreurs API
+try {
+  const response = await fetch(apiUrl, {...})
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(`Server error: ${errorData.error || response.statusText}`)
+  }
+} catch (error) {
+  console.error('Error processing file:', error)
+}
+```
+
+9.2 VALIDATION CÔTÉ SERVEUR
+----------------------------
+```python
+# Validation extension fichier
+if file and file.filename.lower().endswith('.pdf'):
+    pdf_content = file.read()
+else:
+    return jsonify({"error": "Only PDF files are allowed"}), 400
+
+# Gestion exceptions parsing
+try:
+    requirements = extractor.extract_all_requirements()
+    if not requirements:
+        return jsonify({"error": "No PCI requirements found in PDF"}), 400
+except Exception as e:
+    return jsonify({"error": f"Server error: {str(e)}"}), 500
+```
+
+9.3 SÉCURITÉ
+-------------
+- Pas de stockage fichiers sur serveur
+- Validation stricte types MIME
+- Sanitization des données extraites
+- CORS configuré pour domaines autorisés uniquement
+- Pas de logging informations sensibles
+
+========================================
+10. MONITORING ET DEBUGGING
+========================================
+
+10.1 LOGS DÉVELOPPEMENT
+------------------------
+Frontend :
+```typescript
+console.log('Starting PDF processing...', file.name)
+console.log('Data received:', data)
+console.log(`Found ${data.requirements.length} requirements`)
+```
+
+Backend :
+```python
+print(f"Erreur lors de la lecture du PDF: {e}")
+print(f"Found {len(sorted_requirements)} requirements")
+```
+
+10.2 MÉTRIQUES PRODUCTION
+--------------------------
+Vercel Analytics (automatique) :
+- Temps de réponse API
+- Taux d'erreur
+- Utilisation mémoire fonctions
+- Traffic patterns
+
+10.3 DEBUG ALGORITHME
+---------------------
+Fichiers de test disponibles :
+- testv5.py : logique extraction complète
+- testv5_EN.py : version anglaise
+- pci_requirements_v5.json : sortie exemple
+
+========================================
+11. LIMITATIONS ET CONSIDÉRATIONS
+========================================
+
+11.1 LIMITATIONS ACTUELLES
+---------------------------
+- Format PDF uniquement : SAQ D v4.0.1 français
+- Taille limite : ~32MB (limite Vercel)
+- Timeout : 10 secondes maximum traitement
+- Langues : français uniquement actuellement
+
+11.2 DÉPENDANCES CRITIQUES
+---------------------------
+- PyPDF2 : extraction texte PDF
+- Next.js : framework frontend
+- Vercel : plateforme déploiement
+- Tailwind : framework CSS
+
+11.3 POINTS D'AMÉLIORATION FUTURS
+----------------------------------
+1. Support multi-langues (anglais, espagnol)
+2. Traitement par batch (plusieurs PDFs)
+3. API REST complète (CRUD operations)
+4. Interface d'administration
+5. Analytics avancées
+6. Export formats additionnels (Excel, XML)
+7. Validation schémas PCI DSS
+8. Intégrations tiers (GRC tools)
+
+========================================
+12. MAINTENANCE ET ÉVOLUTION
+========================================
+
+12.1 MISE À JOUR DÉPENDANCES
+-----------------------------
+Frontend :
+```bash
+npm update
+npm audit fix
+```
+
+Backend :
+```bash
+pip install --upgrade -r requirements.txt
+pip check
+```
+
+12.2 TESTS ET QUALITÉ
+----------------------
+Actuellement manuel, à automatiser :
+- Tests unitaires extraction
+- Tests intégration API
+- Tests end-to-end interface
+- Performance benchmarks
+
+12.3 VERSIONING
+---------------
+Structure recommandée :
+- Major : changements architecture
+- Minor : nouvelles fonctionnalités
+- Patch : corrections bugs
+
+Version actuelle : 1.0.0 (MVP complet)
+
+========================================
+CONCLUSION
+========================================
+
+Le PCI DSS Extractor représente une solution technique robuste combinant :
+- Technologies web modernes (Next.js, TypeScript)
+- Traitement PDF sophistiqué (PyPDF2, regex avancées)
+- Architecture serverless scalable (Vercel)
+- Interface utilisateur intuitive (Tailwind, React)
+
+L'application démontre une approche équilibrée entre performance, maintenabilité et expérience utilisateur, avec une base solide pour évolutions futures.
+
+Complexité technique : Moyenne à élevée
+Maintenabilité : Excellente (code modulaire, typed)
+Scalabilité : Très bonne (serverless, stateless)
+Performance : Optimisée (traitement sélectif, build optimisé)
+
+========================================
+FIN DE DOCUMENTATION
+========================================

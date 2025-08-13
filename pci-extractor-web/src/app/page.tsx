@@ -7,6 +7,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [extractedData, setExtractedData] = useState<Array<{req_num: string, text: string, tests: string[], guidance: string}> | null>(null)
+  const [languageInfo, setLanguageInfo] = useState<any>(null)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0]
@@ -73,6 +74,12 @@ export default function Home() {
       if (data.requirements && data.requirements.length > 0) {
         console.log(`Found ${data.requirements.length} requirements`)
         setExtractedData(data.requirements)
+        
+        // Capturer les informations de langue si disponibles
+        if (data.summary && data.summary.language_detection) {
+          setLanguageInfo(data.summary.language_detection)
+          console.log('Language detected:', data.summary.language_detection)
+        }
       } else {
         console.warn('No requirements found in response')
       }
@@ -95,7 +102,8 @@ export default function Home() {
     
     const now = new Date()
     const timestamp = now.toISOString().slice(0, 19).replace(/[:.]/g, '-')
-    const fileName = `pci_requirements_${timestamp}.json`
+    const languageSuffix = languageInfo?.code ? `_${languageInfo.code}` : ''
+    const fileName = `pci_requirements${languageSuffix}_${timestamp}.json`
     
     a.download = fileName
     document.body.appendChild(a)
@@ -127,7 +135,8 @@ export default function Home() {
     
     const now = new Date()
     const timestamp = now.toISOString().slice(0, 19).replace(/[:.]/g, '-')
-    const fileName = `pci_requirements_${timestamp}.csv`
+    const languageSuffix = languageInfo?.code ? `_${languageInfo.code}` : ''
+    const fileName = `pci_requirements${languageSuffix}_${timestamp}.csv`
     
     a.download = fileName
     document.body.appendChild(a)
@@ -242,6 +251,27 @@ export default function Home() {
               'Extract Requirements'
             )}
           </button>
+        )}
+
+        {/* Language Detection Info */}
+        {languageInfo && (
+          <div className="mb-6 p-4 rounded-2xl bg-gray-900/50 border border-gray-700">
+            <div className="flex items-center mb-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+              <h3 className="text-white font-medium">Language Detection</h3>
+            </div>
+            <div className="space-y-1 text-sm">
+              <p className="text-gray-300">
+                <span className="text-gray-400">Detected:</span> {languageInfo.name_en || languageInfo.name}
+              </p>
+              <p className="text-gray-300">
+                <span className="text-gray-400">Confidence:</span> {languageInfo.confidence_percentage}
+              </p>
+              <p className="text-gray-300">
+                <span className="text-gray-400">Extractor:</span> {languageInfo.extractor}
+              </p>
+            </div>
+          </div>
         )}
 
         {/* Download Buttons */}

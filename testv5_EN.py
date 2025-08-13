@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Automatic PCI DSS Requirements Extractor 
-Extracts all requirements from SAQ D v4.0.1 document (pages 16-129)
+Automatic PCI DSS Requirements Extractor (Version 5 - Improved) - English Version
+Extracts all requirements from SAQ D v4.0.1 document (pages 16-119)
 Output format: {'req_num': '...', 'text': '...', 'tests': [...], 'guidance': '...'}
 """
 import re
@@ -17,12 +17,12 @@ class PCIRequirementsExtractor:
         self.requirements = []
         
         # Markers to identify sections with more precision
-        self.test_indicators = ['• Examiner', '• Observer', '• Interroger', '• Vérifier', '• Inspecter']
-        self.applicability_marker = "Notes d'Applicabilité"
-        self.guidance_marker = "Conseils"
+        self.test_indicators = ['• Examine', '• Observe', '• Interview', '• Verify', '• Inspect']
+        self.applicability_marker = "Applicability Notes"
+        self.guidance_marker = "Guidance"
 
     def read_pdf_content(self) -> str:
-        """Reads the PDF content and returns the complete text"""
+        """Reads PDF content and returns complete text"""
         try:
             with open(self.pdf_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
@@ -40,20 +40,20 @@ class PCIRequirementsExtractor:
             return ""
 
     def clean_text(self, text: str) -> str:
-        """Cleans the extracted PDF text by removing artifacts"""
-        text = re.sub(r'SAQ D de PCI DSS v[\d.]+.*?Page \d+.*?(?:En Place|Pas en Place)', '', text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r'© 2006-\d+.*?LLC.*?Tous Droits Réservés\.', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'Octobre 2024', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'♦\s*Se reporter.*?(?=\n)', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'\(Cocher une réponse.*?\)', '', text, flags=re.IGNORECASE)
+        """Cleans extracted PDF text by removing artifacts"""
+        text = re.sub(r'PCI DSS SAQ D v[\d.]+.*?Page \d+.*?(?:In Place|Not in Place)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'© 2006-\d+.*?LLC.*?All Rights Reserved\.', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'October 2024', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'♦\s*Refer to.*?(?=\n)', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\(Check one response.*?\)', '', text, flags=re.IGNORECASE)
         text = re.sub(r'Section \d+ :', '', text, flags=re.IGNORECASE)
         
         # Clean response tables
-        text = re.sub(r'En Place\s+En Place avec CCW\s+Non Applicable\s+Non Testé\s+Pas en Place', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'avec CCW\s+Non Applicable\s+Non Testé\s+Pas en Place', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'avec CCW Non Applicable Non Testé Pas.*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'In Place\s+In Place with CCW\s+Not Applicable\s+Not Tested\s+Not in Place', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'with CCW\s+Not Applicable\s+Not Tested\s+Not in Place', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'with CCW Not Applicable Not Tested Not.*', '', text, flags=re.IGNORECASE)
         
-        # Replace multiple line breaks with a single one
+        # Replace multiple line breaks with single ones
         text = re.sub(r'\n\s*\n', '\n\n', text)
         # Remove spaces at beginning/end of lines
         lines = [line.strip() for line in text.splitlines()]
@@ -70,7 +70,7 @@ class PCIRequirementsExtractor:
             parts = req_num.split('.')
             if len(parts) >= 2:
                 main_num = int(parts[0])
-                # PCI requirements range from 1 to 12
+                # PCI requirements go from 1 to 12
                 if 1 <= main_num <= 12:
                     return req_num
         return ""
@@ -81,8 +81,8 @@ class PCIRequirementsExtractor:
         return any(line_clean.startswith(indicator) for indicator in self.test_indicators)
 
     def extract_requirement_text(self, line: str, req_num: str) -> str:
-        """Extracts the requirement text by removing the number"""
-        # Find the position after the requirement number
+        """Extracts requirement text by removing the number"""
+        # Find position after requirement number
         pattern = rf'^{re.escape(req_num)}\s+'
         cleaned_line = re.sub(pattern, '', line.strip())
         return cleaned_line
@@ -97,20 +97,20 @@ class PCIRequirementsExtractor:
         while i < len(lines):
             line = lines[i].strip()
             
-            if not line:  # Ignore empty lines
+            if not line:  # Skip empty lines
                 i += 1
                 continue
 
             # Check if it's the start of a new requirement
             req_num = self.is_requirement_number(line)
             if req_num:
-                # Save the previous requirement if it exists
+                # Save previous requirement if it exists
                 if current_req:
                     self._finalize_requirement(current_req)
                     if not any(req['req_num'] == current_req['req_num'] for req in requirements):
                         requirements.append(current_req)
 
-                # Initialize a new requirement
+                # Initialize new requirement
                 req_text = self.extract_requirement_text(line, req_num)
                 current_req = {
                     'req_num': req_num,
@@ -125,9 +125,9 @@ class PCIRequirementsExtractor:
             if current_req:
                 # Check if it's a test line
                 if self.is_test_line(line):
-                    # Extract the complete test while preserving the action verb
+                    # Extract complete test preserving action verb
                     test_text = line
-                    # Clean the bullet but keep the verb
+                    # Clean bullet but keep verb
                     test_text = re.sub(r'^•\s*', '', test_text).strip()
                     
                     # Gather continuation lines for this test
@@ -137,18 +137,18 @@ class PCIRequirementsExtractor:
                         if not next_line:
                             j += 1
                             continue
-                        # Stop if we find a new requirement, a new test, or a special section
+                        # Stop if we find a new requirement, new test, or special section
                         if (self.is_requirement_number(next_line) or 
                             self.is_test_line(next_line) or
                             next_line.startswith(self.applicability_marker) or
                             next_line.startswith(self.guidance_marker) or
                             self._should_ignore_line(next_line)):
                             break
-                        # Add continuation to the current test
+                        # Add continuation to current test
                         test_text += " " + next_line
                         j += 1
                     
-                    # Clean the test from artifacts
+                    # Clean test of artifacts
                     test_text = self._clean_test_text(test_text)
                     if test_text and len(test_text) > 10:  # Only significant tests
                         current_req['tests'].append(test_text)
@@ -156,9 +156,9 @@ class PCIRequirementsExtractor:
                     i = j
                     continue
 
-                # Check if it's the Applicability Notes section
+                # Check if it's Applicability Notes section
                 elif line.startswith(self.applicability_marker):
-                    # Extract applicability notes content into the guidance field
+                    # Extract applicability notes content in guidance field
                     guidance_text = line[len(self.applicability_marker):].strip(': ')
                     j = i + 1
                     while j < len(lines):
@@ -179,7 +179,7 @@ class PCIRequirementsExtractor:
                     i = j
                     continue
 
-                # Check if it's the Guidance section
+                # Check if it's Guidance section
                 elif line.startswith(self.guidance_marker):
                     guidance_text = line[len(self.guidance_marker):].strip(': ')
                     j = i + 1
@@ -207,7 +207,7 @@ class PCIRequirementsExtractor:
 
                 # Otherwise, it's text belonging to the main requirement
                 else:
-                    # Check if the text contains hidden tests
+                    # Check if text contains hidden tests
                     # AND handle multi-line tests
                     cleaned_line, j = self._extract_tests_from_text_line_multiline(line, current_req, lines, i)
                     
@@ -225,7 +225,7 @@ class PCIRequirementsExtractor:
 
             i += 1
 
-        # Save the last requirement
+        # Save last requirement
         if current_req:
             self._finalize_requirement(current_req)
             if not any(req['req_num'] == current_req['req_num'] for req in requirements):
@@ -240,15 +240,15 @@ class PCIRequirementsExtractor:
         
         # Find all tests in the line
         for indicator in self.test_indicators:
-            verb = indicator[2:]  # Remove "• " to get just "Examiner", "Observer", etc.
+            verb = indicator[2:]  # Remove "• " to get just "Examine", "Observe", etc.
             pattern = rf'•\s*{re.escape(verb)}[^•]*'
             matches = list(re.finditer(pattern, remaining_text, re.IGNORECASE))
             
-            for match in reversed(matches):  # Process from right to left to preserve positions
+            for match in reversed(matches):  # Process right to left to preserve positions
                 test_text = match.group(0)
                 test_text = re.sub(r'^•\s*', '', test_text).strip()
                 
-                # Check if the test seems incomplete (very short or ends abruptly)
+                # Check if test seems incomplete (very short or ends abruptly)
                 # and gather following lines if necessary
                 if len(test_text) < 30 or not test_text.endswith('.'):
                     # Gather following lines for this test
@@ -259,7 +259,7 @@ class PCIRequirementsExtractor:
                             j += 1
                             continue
                         
-                        # Stop if we find a new requirement, a new test, or a special section
+                        # Stop if we find a new requirement, new test, or special section
                         if (self.is_requirement_number(next_line) or 
                             self.is_test_line(next_line) or
                             next_line.startswith(self.applicability_marker) or
@@ -267,7 +267,7 @@ class PCIRequirementsExtractor:
                             self._should_ignore_line(next_line)):
                             break
                         
-                        # Add continuation to the current test
+                        # Add continuation to current test
                         test_text += " " + next_line
                         processed_lines = j  # Mark this line as processed
                         
@@ -277,18 +277,18 @@ class PCIRequirementsExtractor:
                         
                         j += 1
                 
-                # Clean the test from artifacts
+                # Clean test of artifacts
                 test_text = self._clean_test_text(test_text)
                 
                 if test_text and len(test_text) > 10:
-                    # Add the test if it doesn't already exist
+                    # Add test if it doesn't already exist
                     if test_text not in current_req['tests']:
                         current_req['tests'].append(test_text)
                     
-                    # Remove the test from the remaining text
+                    # Remove test from remaining text
                     remaining_text = remaining_text[:match.start()] + ' ' + remaining_text[match.end():]
         
-        # Clean the remaining text
+        # Clean remaining text
         remaining_text = re.sub(r'\s+', ' ', remaining_text).strip()
         return remaining_text, processed_lines
 
@@ -298,39 +298,39 @@ class PCIRequirementsExtractor:
         
         # Find all tests in the line
         for indicator in self.test_indicators:
-            verb = indicator[2:]  # Remove "• " to get just "Examiner", "Observer", etc.
+            verb = indicator[2:]  # Remove "• " to get just "Examine", "Observe", etc.
             pattern = rf'•\s*{re.escape(verb)}[^•]*'
             matches = list(re.finditer(pattern, remaining_text, re.IGNORECASE))
             
-            for match in reversed(matches):  # Process from right to left to preserve positions
+            for match in reversed(matches):  # Process right to left to preserve positions
                 test_text = match.group(0)
                 test_text = re.sub(r'^•\s*', '', test_text).strip()
                 test_text = self._clean_test_text(test_text)
                 
                 if test_text and len(test_text) > 10:
-                    # Add the test if it doesn't already exist
+                    # Add test if it doesn't already exist
                     if test_text not in current_req['tests']:
                         current_req['tests'].append(test_text)
                     
-                    # Remove the test from the remaining text
+                    # Remove test from remaining text
                     remaining_text = remaining_text[:match.start()] + ' ' + remaining_text[match.end():]
         
-        # Clean the remaining text
+        # Clean remaining text
         remaining_text = re.sub(r'\s+', ' ', remaining_text).strip()
         return remaining_text
 
     def _clean_test_text(self, text: str) -> str:
         """Cleans test text by removing artifacts"""
         # Remove layout artifacts
-        text = re.sub(r'SAQ D de PCI DSS.*?Page \d+.*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'PCI DSS SAQ D.*?Page \d+.*', '', text, flags=re.IGNORECASE)
         text = re.sub(r'© 2006-.*?LLC.*', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'En Place.*?Pas en Place', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'♦\s*Se reporter.*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'In Place.*?Not in Place', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'♦\s*Refer to.*', '', text, flags=re.IGNORECASE)
         
         # Remove response table artifacts
-        text = re.sub(r'avec CCW Non Applicable Non Testé Pas.*', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'En Place\s+En Place avec CCW\s+Non Applicable\s+Non Testé\s+Pas en Place', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'(En Place|Pas en Place|Non Applicable|Non Testé|CCW)(\s+(En Place|Pas en Place|Non Applicable|Non Testé|CCW))*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'with CCW Not Applicable Not Tested Not.*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'In Place\s+In Place with CCW\s+Not Applicable\s+Not Tested\s+Not in Place', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'(In Place|Not in Place|Not Applicable|Not Tested|CCW)(\s+(In Place|Not in Place|Not Applicable|Not Tested|CCW))*', '', text, flags=re.IGNORECASE)
         
         # Normalize spaces
         text = re.sub(r'\s+', ' ', text)
@@ -339,20 +339,20 @@ class PCIRequirementsExtractor:
     def _clean_guidance_text(self, text: str) -> str:
         """Cleans guidance text by removing artifacts"""
         # Remove similar artifacts
-        text = re.sub(r'SAQ D de PCI DSS.*?Page \d+.*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'PCI DSS SAQ D.*?Page \d+.*', '', text, flags=re.IGNORECASE)
         text = re.sub(r'© 2006-.*?LLC.*', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'En Place.*?Pas en Place', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'In Place.*?Not in Place', '', text, flags=re.IGNORECASE)
         # Normalize spaces
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
 
     def _is_valid_text_line(self, line: str, current_text: str) -> bool:
-        """Checks if a line is valid to be added to the main text"""
+        """Checks if a line is valid to be added to main text"""
         # Avoid repetitions
         if line in current_text:
             return False
         
-        # Avoid lines that are too short or seem to be artifacts
+        # Avoid lines too short or that seem to be artifacts
         if len(line) < 3:
             return False
             
@@ -365,21 +365,21 @@ class PCIRequirementsExtractor:
     def _should_ignore_line(self, line: str) -> bool:
         """Determines if a line should be ignored"""
         ignore_patterns = [
-            r'^SAQ D de PCI DSS',
+            r'^PCI DSS SAQ D',
             r'^© 2006-\d+',
             r'^Page \d+',
-            r'^Octobre 2024',
-            r'^Exigence de PCI DSS',
-            r'^Tests Prévus',
-            r'^Réponse',
-            r'^En Place',
-            r'^Pas en Place',
-            r'^Non Applicable',
-            r'^Non Testé',
-            r'^♦ Se reporter',
-            r'^\(Cocher une réponse',
+            r'^October 2024',
+            r'^PCI DSS Requirement',
+            r'^Testing Procedures',
+            r'^Response',
+            r'^In Place',
+            r'^Not in Place',
+            r'^Not Applicable',
+            r'^Not Tested',
+            r'^♦ Refer to',
+            r'^\(Check one response',
             r'^Section \d+',
-            r'^Tous Droits Réservés',
+            r'^All Rights Reserved',
             r'^LLC\.',
             r'^PCI Security Standards Council',
         ]
@@ -396,16 +396,16 @@ class PCIRequirementsExtractor:
         return False
 
     def _remove_response_artifacts(self, text: str) -> str:
-        """Removes response checkbox artifacts from the questionnaire"""
+        """Removes questionnaire response checkbox artifacts"""
         # Remove all variations of response checkboxes
         patterns_to_remove = [
-            r'avec CCW Non Applicable Non Testé Pas.*?(?=\n|$)',
-            r'En Place\s+En Place avec CCW\s+Non Applicable\s+Non Testé\s+Pas en Place',
-            r'avec CCW\s+Non Applicable\s+Non Testé\s+Pas en Place',
-            r'En Place.*?Pas en Place.*?(?=\n|$)',
-            r'(En Place|Pas en Place|Non Applicable|Non Testé|CCW)(\s+(En Place|Pas en Place|Non Applicable|Non Testé|CCW))+',
-            r'♦\s*Se reporter.*?(?=\n|$)',
-            r'\(Cocher une réponse.*?\)',
+            r'with CCW Not Applicable Not Tested Not.*?(?=\n|$)',
+            r'In Place\s+In Place with CCW\s+Not Applicable\s+Not Tested\s+Not in Place',
+            r'with CCW\s+Not Applicable\s+Not Tested\s+Not in Place',
+            r'In Place.*?Not in Place.*?(?=\n|$)',
+            r'(In Place|Not in Place|Not Applicable|Not Tested|CCW)(\s+(In Place|Not in Place|Not Applicable|Not Tested|CCW))+',
+            r'♦\s*Refer to.*?(?=\n|$)',
+            r'\(Check one response.*?\)',
         ]
         
         for pattern in patterns_to_remove:
@@ -416,15 +416,15 @@ class PCIRequirementsExtractor:
         return text.strip()
 
     def _finalize_requirement(self, req: Dict[str, Any]):
-        """Cleans and finalizes a requirement before saving it"""
-        # Extract remaining tests from the main text
+        """Cleans and finalizes a requirement before saving"""
+        # Extract remaining tests from main text
         text_remaining = self._extract_tests_from_text_line(req['text'], req)
         req['text'] = text_remaining
         
-        # Remove response checkbox artifacts from the main text
+        # Remove response checkbox artifacts from main text
         req['text'] = self._remove_response_artifacts(req['text'])
         
-        # Clean the main text
+        # Clean main text
         req['text'] = req['text'].strip()
         req['text'] = re.sub(r'\s+', ' ', req['text'])  # Normalize spaces
         
@@ -438,13 +438,13 @@ class PCIRequirementsExtractor:
                 cleaned_tests.append(test_clean)
         req['tests'] = cleaned_tests
         
-        # Clean the guidance
+        # Clean guidance
         req['guidance'] = self._remove_response_artifacts(req['guidance'])
         req['guidance'] = req['guidance'].strip()
         req['guidance'] = re.sub(r'\s+', ' ', req['guidance'])
 
     def extract_all_requirements(self) -> List[Dict[str, Any]]:
-        """Extracts all requirements from the PDF"""
+        """Extracts all requirements from PDF"""
         print("Reading PDF...")
         raw_text = self.read_pdf_content()
         if not raw_text:
@@ -461,7 +461,7 @@ class PCIRequirementsExtractor:
     def print_summary(self):
         """Displays a summary of extracted requirements"""
         print(f"\nExtraction Summary:")
-        print(f"Total number of extracted requirements: {len(self.requirements)}")
+        print(f"Total requirements extracted: {len(self.requirements)}")
         if self.requirements:
             print(f"First requirement: {self.requirements[0]['req_num']}")
             print(f"Last requirement: {self.requirements[-1]['req_num']}")
@@ -475,8 +475,8 @@ class PCIRequirementsExtractor:
             print(f"Requirements with guidance: {with_guidance}")
             print(f"Total tests extracted: {total_tests}")
 
-    def save_to_json(self, output_file: str = "pci_requirements_v5.json"):
-        """Saves requirements in JSON format"""
+    def save_to_json(self, output_file: str = "pci_requirements_v5_EN.json"):
+        """Saves requirements to JSON format"""
         # Sort by requirement number
         def sort_key(req):
             parts = [int(x) for x in req['req_num'].split('.')]
@@ -490,11 +490,11 @@ class PCIRequirementsExtractor:
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(sorted_requirements, f, ensure_ascii=False, indent=2)
         print("=" * 60)
-        print(f"Requirements saved in {output_file}")
+        print(f"Requirements saved to {output_file}")
 
 def main():
-    pdf_path = "PCI-DSS-v4-0-1-SAQ-D-Merchant-FR.pdf"
-    print("FRENCH PCI DSS EXTRACTOR")
+    pdf_path = "PCI-DSS-v4-0-1-SAQ-D-Merchant-EN.pdf"
+    print("PCI DSS ENGLISH EXTRACTOR")
     print("=" * 60)
     
     extractor = PCIRequirementsExtractor(pdf_path)
@@ -502,7 +502,7 @@ def main():
 
     if requirements:
         extractor.print_summary()
-        extractor.save_to_json("pci_requirements_v5.json")
+        extractor.save_to_json("pci_requirements_v5_EN.json")
     else:
         print("No requirements could be extracted.")
 
