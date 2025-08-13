@@ -7,7 +7,13 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [extractedData, setExtractedData] = useState<Array<{req_num: string, text: string, tests: string[], guidance: string}> | null>(null)
-  const [languageInfo, setLanguageInfo] = useState<any>(null)
+  const [languageInfo, setLanguageInfo] = useState<{
+    code: string;
+    name: string;
+    name_en: string;
+    confidence_percentage: string;
+    extractor: string;
+  } | null>(null)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0]
