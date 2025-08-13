@@ -6,6 +6,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [extractedData, setExtractedData] = useState<any>(null)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0]
@@ -71,27 +72,7 @@ export default function Home() {
       
       if (data.requirements && data.requirements.length > 0) {
         console.log(`Found ${data.requirements.length} requirements`)
-        
-        // Télécharger automatiquement le JSON
-        const blob = new Blob([JSON.stringify(data.requirements, null, 2)], {
-          type: 'application/json',
-        })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        
-        // Générer le nom de fichier avec la date
-        const now = new Date()
-        const timestamp = now.toISOString().slice(0, 19).replace(/[:.]/g, '-')
-        const fileName = `pci_requirements_${timestamp}.json`
-        
-        a.download = fileName
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-        
-        console.log(`JSON downloaded as: ${fileName}`)
+        setExtractedData(data.requirements)
       } else {
         console.warn('No requirements found in response')
       }
@@ -100,6 +81,59 @@ export default function Home() {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const downloadJSON = () => {
+    if (!extractedData) return
+    
+    const blob = new Blob([JSON.stringify(extractedData, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    
+    const now = new Date()
+    const timestamp = now.toISOString().slice(0, 19).replace(/[:.]/g, '-')
+    const fileName = `pci_requirements_${timestamp}.json`
+    
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadCSV = () => {
+    if (!extractedData) return
+    
+    const headers = ['reqid', 'pci_requirement_fr', 'tp', 'guidance']
+    const csvContent = [
+      headers.join(','),
+      ...extractedData.map((item: any) => [
+        `"${(item.req_num || '').replace(/"/g, '""')}"`,
+        `"${(item.text || '').replace(/"/g, '""')}"`,
+        `"${(Array.isArray(item.tests) ? item.tests.join('; ') : item.tests || '').replace(/"/g, '""')}"`,
+        `"${(item.guidance || '').replace(/"/g, '""')}"`
+      ].join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], {
+      type: 'text/csv;charset=utf-8;',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    
+    const now = new Date()
+    const timestamp = now.toISOString().slice(0, 19).replace(/[:.]/g, '-')
+    const fileName = `pci_requirements_${timestamp}.csv`
+    
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -189,7 +223,7 @@ export default function Home() {
         </div>
 
         {/* Process Button */}
-        {file && (
+        {file && !extractedData && (
           <button
             onClick={processFile}
             disabled={isProcessing}
@@ -208,6 +242,24 @@ export default function Home() {
               'Extract Requirements'
             )}
           </button>
+        )}
+
+        {/* Download Buttons */}
+        {extractedData && (
+          <div className="space-y-3">
+            <button
+              onClick={downloadJSON}
+              className="w-full py-4 px-6 rounded-2xl font-medium text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+            >
+              Download as JSON
+            </button>
+            <button
+              onClick={downloadCSV}
+              className="w-full py-4 px-6 rounded-2xl font-medium text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+            >
+              Download as CSV
+            </button>
+          </div>
         )}
 
       </div>
