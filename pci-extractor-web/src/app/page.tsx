@@ -105,9 +105,9 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden">
       {/* Gradient Background Effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-black to-pink-500/10"></div>
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-r from-orange-500/20 to-pink-500/20 rounded-full blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-l from-pink-500/15 to-orange-500/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 via-black to-red-500/10"></div>
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-r from-red-500/20 to-red-600/20 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-l from-red-600/15 to-red-500/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
       
       {/* Main Container */}
       <div className="relative z-10 w-full max-w-md mx-auto px-6">
@@ -115,7 +115,7 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-12">
           <div className="mb-6">
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-orange-500 to-pink-500 rounded-2xl flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-red-500 to-red-600 rounded-2xl flex items-center justify-center">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
@@ -150,16 +150,16 @@ export default function Home() {
             htmlFor="file-upload"
             className={`relative block w-full p-8 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 group ${
               isDragging 
-                ? 'border-orange-500/50 bg-orange-500/5' 
+                ? 'border-red-500/50 bg-red-500/5' 
                 : file 
-                ? 'border-pink-500/30 bg-pink-500/5' 
+                ? 'border-red-500/30 bg-red-500/5' 
                 : 'border-gray-700 hover:border-gray-600 hover:bg-gray-900/20'
             }`}
           >
             <div className="text-center">
               <div className={`mx-auto w-12 h-12 mb-4 rounded-full flex items-center justify-center transition-all duration-300 ${
                 file 
-                  ? 'bg-gradient-to-r from-orange-500 to-pink-500' 
+                  ? 'bg-gradient-to-r from-red-500 to-red-600' 
                   : 'bg-gray-800 group-hover:bg-gray-700'
               }`}>
                 {file ? (
@@ -196,7 +196,7 @@ export default function Home() {
             className={`w-full py-4 px-6 rounded-2xl font-medium text-white transition-all duration-300 ${
               isProcessing
                 ? 'bg-gray-700 cursor-not-allowed'
-                : 'bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 transform hover:scale-[1.02] active:scale-[0.98]'
+                : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transform hover:scale-[1.02] active:scale-[0.98]'
             }`}
           >
             {isProcessing ? (
@@ -210,12 +210,6 @@ export default function Home() {
           </button>
         )}
 
-        {/* Success/Error Messages */}
-        <div className="mt-8 text-center">
-          <p className="text-gray-500 text-xs">
-            Secure • Fast • Automated
-          </p>
-        </div>
       </div>
     </div>
   )

@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PDF Extractor",
   description: "Extract PCI data from PDF files",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
