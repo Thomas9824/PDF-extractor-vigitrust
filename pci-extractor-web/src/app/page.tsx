@@ -6,7 +6,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
-  const [extractedData, setExtractedData] = useState<any>(null)
+  const [extractedData, setExtractedData] = useState<Array<{req_num: string, text: string, tests: string[], guidance: string}> | null>(null)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0]
@@ -110,7 +110,7 @@ export default function Home() {
     const headers = ['reqid', 'pci_requirement_fr', 'tp', 'guidance']
     const csvContent = [
       headers.join(','),
-      ...extractedData.map((item: any) => [
+      ...extractedData.map((item) => [
         `"${(item.req_num || '').replace(/"/g, '""')}"`,
         `"${(item.text || '').replace(/"/g, '""')}"`,
         `"${(Array.isArray(item.tests) ? item.tests.join('; ') : item.tests || '').replace(/"/g, '""')}"`,
