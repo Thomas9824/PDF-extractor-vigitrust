@@ -585,12 +585,15 @@ class PCIRequirementsExtractorEN(PCIRequirementsExtractorBase):
 
     def clean_text(self, text: str) -> str:
         """Nettoie le texte extrait du PDF en supprimant les artefacts anglais"""
+        # Patterns spécifiques au format anglais
+        text = re.sub(r'PCI DSS v[\d.]+\s+SAQ D for Merchants.*?Page \d+', '', text, flags=re.DOTALL | re.IGNORECASE)
         text = re.sub(r'PCI DSS SAQ D v[\d.]+.*?Page \d+.*?(?:In Place|Not in Place)', '', text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r'© 2006-\d+.*?LLC.*?All Rights Reserved\.', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'© 2006[−-]\d+.*?PCI Security Standards Council.*?LLC.*?All Rights Reserved\.', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'Section \d+:\s*Self[−-]Assessment Questionnaire', '', text, flags=re.IGNORECASE)
         text = re.sub(r'October 2024', '', text, flags=re.IGNORECASE)
         text = re.sub(r'♦\s*Refer to.*?(?=\n)', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\(Check one response.*?\)', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'Section \d+ :', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'Section \d+\s*:', '', text, flags=re.IGNORECASE)
         
         text = re.sub(r'In Place\s+In Place with CCW\s+Not Applicable\s+Not Tested\s+Not in Place', '', text, flags=re.IGNORECASE)
         text = re.sub(r'with CCW\s+Not Applicable\s+Not Tested\s+Not in Place', '', text, flags=re.IGNORECASE)
@@ -602,8 +605,12 @@ class PCIRequirementsExtractorEN(PCIRequirementsExtractorBase):
 
     def _clean_test_text(self, text: str) -> str:
         """Nettoie le texte d'un test en supprimant les artefacts anglais"""
+        # Patterns spécifiques aux artefacts anglais
+        text = re.sub(r'PCI DSS v[\d.]+\s+SAQ D for Merchants.*?Page \d+', '', text, flags=re.IGNORECASE)
         text = re.sub(r'PCI DSS SAQ D.*?Page \d+.*', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'© 2006-.*?LLC.*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'© 2006[−-]\d+.*?PCI Security Standards Council.*?LLC.*?All Rights Reserved\.', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'Section \d+:\s*Self[−-]Assessment Questionnaire', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'October 2024', '', text, flags=re.IGNORECASE)
         text = re.sub(r'In Place.*?Not in Place', '', text, flags=re.IGNORECASE)
         text = re.sub(r'♦\s*Refer to.*', '', text, flags=re.IGNORECASE)
         text = re.sub(r'with CCW Not Applicable Not Tested Not.*', '', text, flags=re.IGNORECASE)
@@ -614,8 +621,11 @@ class PCIRequirementsExtractorEN(PCIRequirementsExtractorBase):
 
     def _clean_guidance_text(self, text: str) -> str:
         """Nettoie le texte de guidance en supprimant les artefacts anglais"""
+        text = re.sub(r'PCI DSS v[\d.]+\s+SAQ D for Merchants.*?Page \d+', '', text, flags=re.IGNORECASE)
         text = re.sub(r'PCI DSS SAQ D.*?Page \d+.*', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'© 2006-.*?LLC.*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'© 2006[−-]\d+.*?PCI Security Standards Council.*?LLC.*?All Rights Reserved\.', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'Section \d+:\s*Self[−-]Assessment Questionnaire', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'October 2024', '', text, flags=re.IGNORECASE)
         text = re.sub(r'In Place.*?Not in Place', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
@@ -623,10 +633,13 @@ class PCIRequirementsExtractorEN(PCIRequirementsExtractorBase):
     def _should_ignore_line(self, line: str) -> bool:
         """Détermine si une ligne doit être ignorée (anglais)"""
         ignore_patterns = [
+            r'^PCI DSS v[\d.]+\s+SAQ D for Merchants',
             r'^PCI DSS SAQ D',
-            r'^© 2006-\d+',
+            r'^© 2006[−-]\d+',
             r'^Page \d+',
             r'^October 2024',
+            r'^Section \d+:\s*Self[−-]Assessment Questionnaire',
+            r'^PCI Security Standards Council',
             r'^PCI DSS Requirement',
             r'^Testing Procedures',
             r'^Response',
@@ -639,7 +652,6 @@ class PCIRequirementsExtractorEN(PCIRequirementsExtractorBase):
             r'^Section \d+',
             r'^All Rights Reserved',
             r'^LLC\.',
-            r'^PCI Security Standards Council',
         ]
         
         for pattern in ignore_patterns:
@@ -654,6 +666,10 @@ class PCIRequirementsExtractorEN(PCIRequirementsExtractorBase):
     def _remove_response_artifacts(self, text: str) -> str:
         """Supprime les artefacts de cases de réponse du questionnaire anglais"""
         patterns_to_remove = [
+            r'PCI DSS v[\d.]+\s+SAQ D for Merchants.*?(?=\n|$)',
+            r'© 2006[−-]\d+.*?PCI Security Standards Council.*?LLC.*?All Rights Reserved\..*?(?=\n|$)',
+            r'Section \d+:\s*Self[−-]Assessment Questionnaire.*?(?=\n|$)',
+            r'October 2024.*?(?=\n|$)',
             r'with CCW Not Applicable Not Tested Not.*?(?=\n|$)',
             r'In Place\s+In Place with CCW\s+Not Applicable\s+Not Tested\s+Not in Place',
             r'with CCW\s+Not Applicable\s+Not Tested\s+Not in Place',
